@@ -6,3 +6,6 @@ A web application developed for showcasing and supporting folk artists and cultu
 - Artist information
 - Event details
 - User-friendly interface
+
+## Live Demo
+https://kalavidara-balaga-sooty.vercel.app/
