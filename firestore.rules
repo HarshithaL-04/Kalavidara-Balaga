@@ -1,0 +1,128 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isEmailVerified() {
+      // In development/preview, we can be more lenient, or just check if it's there
+      return isSignedIn() && (request.auth.token.email_verified == true || request.auth.token.firebase.sign_in_provider == 'google.com');
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Entity Validations ---
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'role']) &&
+             data.keys().size() <= 6 &&
+             data.uid == request.auth.uid &&
+             data.email is string &&
+             data.role in ['user', 'performer', 'admin'] &&
+             (data.get('displayName', '') is string && data.get('displayName', '').size() <= 100) &&
+             (data.get('photoURL', '') is string && data.get('photoURL', '').size() <= 500);
+    }
+
+    function isValidPerformerProfile(data) {
+      return data.keys().hasAll(['uid', 'groupName', 'leaderName', 'district', 'artForm']) &&
+             data.uid == request.auth.uid &&
+             data.groupName is string && data.groupName.size() <= 100 &&
+             data.leaderName is string && data.leaderName.size() <= 100 &&
+             data.district is string &&
+             data.artForm is string &&
+             (data.get('price', 0) is number) &&
+             (data.get('description', '').size() <= 5000);
+    }
+
+    function isValidBooking(data) {
+      return data.keys().hasAll(['id', 'performerId', 'userId', 'eventDate', 'status']) &&
+             data.userId == request.auth.uid &&
+             data.status in ['pending', 'accepted', 'rejected', 'completed'] &&
+             exists(/databases/$(database)/documents/performerProfiles/$(data.performerId));
+    }
+
+    function isValidReview(data) {
+      return data.keys().hasAll(['id', 'bookingId', 'performerId', 'userId', 'rating']) &&
+             data.userId == request.auth.uid &&
+             data.rating is number && data.rating >= 1 && data.rating <= 5 &&
+             get(/databases/$(database)/documents/bookings/$(data.bookingId)).data.userId == request.auth.uid;
+    }
+
+    // --- Rules ---
+
+    // 1. Users
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && isValidUser(incoming()) && 
+                    incoming().role == existing().role; // Role is immutable
+      allow delete: if isAdmin();
+    }
+
+    // 2. Performer Profiles
+    match /performerProfiles/{performerId} {
+      allow read: if true; // Public profiles
+      allow create: if isOwner(performerId) && isEmailVerified() && isValidPerformerProfile(incoming());
+      allow update: if (isOwner(performerId) || isAdmin()) && isEmailVerified() && isValidPerformerProfile(incoming());
+      allow delete: if isAdmin();
+    }
+
+    // 3. Bookings
+    match /bookings/{bookingId} {
+      allow get: if isSignedIn() && (isOwner(existing().userId) || isOwner(existing().performerId) || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || resource.data.performerId == request.auth.uid);
+      
+      allow create: if isEmailVerified() && isValidBooking(incoming());
+      
+      allow update: if isEmailVerified() && (
+        // User cancels
+        (isOwner(existing().userId) && incoming().status == 'rejected' && incoming().diff(existing()).affectedKeys().hasOnly(['status'])) ||
+        // Performer accepts/rejects
+        (isOwner(existing().performerId) && incoming().status in ['accepted', 'rejected', 'completed'] && incoming().diff(existing()).affectedKeys().hasOnly(['status'])) ||
+        isAdmin()
+      );
+    }
+
+    // 4. Reviews
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isEmailVerified() && isValidReview(incoming());
+      allow update: if false; // Reviews are immutable for users
+      allow delete: if isAdmin();
+    }
+
+    // 5. Notifications
+    match /notifications/{notificationId} {
+      allow get: if isOwner(existing().userId);
+      allow list: if isOwner(resource.data.userId);
+      allow write: if false; // Only system should write
+      allow update: if isOwner(existing().userId) && isEmailVerified() && incoming().diff(existing()).affectedKeys().hasOnly(['read']);
+    }
+  }
+}

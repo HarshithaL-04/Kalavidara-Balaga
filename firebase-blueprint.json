@@ -1,0 +1,113 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "App user (Customer, Performer, or Admin)",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["user", "performer", "admin"] },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "PerformerProfile": {
+      "title": "Performer Profile",
+      "description": "Details for a performance group or individual artist",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "groupName": { "type": "string" },
+        "leaderName": { "type": "string" },
+        "phone": { "type": "string" },
+        "district": { "type": "string" },
+        "artForm": { "type": "string" },
+        "experience": { "type": "string" },
+        "price": { "type": "number" },
+        "description": { "type": "string" },
+        "photoUrl": { "type": "string" },
+        "gallery": { "type": "array", "items": { "type": "string" } },
+        "videos": { "type": "array", "items": { "type": "string" } },
+        "isApproved": { "type": "boolean" },
+        "rating": { "type": "number" },
+        "reviewCount": { "type": "number" },
+        "availability": { "type": "array", "items": { "type": "string" } },
+        "equipment": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["uid", "groupName", "leaderName", "district", "artForm"]
+    },
+    "Booking": {
+      "title": "Booking",
+      "description": "Performance booking record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "performerId": { "type": "string" },
+        "userId": { "type": "string" },
+        "eventDate": { "type": "string", "format": "date" },
+        "location": { "type": "string" },
+        "details": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "accepted", "rejected", "completed"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "priceAtBooking": { "type": "number" }
+      },
+      "required": ["id", "performerId", "userId", "eventDate", "status"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "User review for a performer",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "bookingId": { "type": "string" },
+        "performerId": { "type": "string" },
+        "userId": { "type": "string" },
+        "rating": { "type": "number" },
+        "comment": { "type": "string" },
+        "photos": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "bookingId", "performerId", "userId", "rating"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "App notification for users",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "type": { "type": "string" },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "title", "message", "read"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Master user records"
+    },
+    "/performerProfiles/{performerId}": {
+      "schema": "PerformerProfile",
+      "description": "Artist and group details"
+    },
+    "/bookings/{bookingId}": {
+      "schema": "Booking",
+      "description": "Performance requests and history"
+    },
+    "/reviews/{reviewId}": {
+      "schema": "Review",
+      "description": "Public feedback for performers"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "In-app alerts"
+    }
+  }
+}
